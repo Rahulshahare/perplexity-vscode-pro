@@ -46,31 +46,83 @@ const App: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognition = useRef<SpeechRecognition | null>(null);
+  const recognition = useRef<SpeechRecognition> || (null);
 
   // Initialize speech recognition
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition.current = new SpeechRecognition();
-      recognition.current.continuous = false;
-      recognition.current.interimResults = false;
-      recognition.current.lang = 'en-US';
-
-      recognition.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputMessage(transcript);
-        setIsRecording(false);
-      };
-
-      recognition.current.onerror = () => {
-        setIsRecording(false);
-      };
-
-      recognition.current.onend = () => {
-        setIsRecording(false);
-      };
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      console.warn('Speech recognition is not supported in this browser');
+      return;
     }
+    
+    const recognitionInstance = new SpeechRecognition();
+    recognitionInstance.continuous = false;
+    recognitionInstance.interimResults = false;
+    recognitionInstance.lang = 'en-US';
+    
+    // Store the instance in the ref
+    recognition.current = recognitionInstance;
+
+    // Event handlers with proper typing
+    const handleResult = (event: SpeechRecognitionEvent) => {
+      try {
+        // Safely access results with proper type checking
+        const results = event.results;
+        if (results && results.length > 0) {
+          const result = results[event.resultIndex];
+          if (result && !result.isFinal && result.length > 0) {
+            const firstAlternative = result[0];
+            if (firstAlternative) {
+              setInputMessage(firstAlternative.transcript);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error processing speech result:', error);
+      } finally {
+        setIsRecording(false);
+      }
+    };
+
+    const handleError = (event: Event) => {
+      const e = event as SpeechRecognitionErrorEvent;
+      console.error('Speech recognition error:', {
+        error: e.error,
+        message: e.message,
+        type: event.type
+      });
+      setIsRecording(false);
+    };
+
+    const handleEnd = () => {
+      setIsRecording(false);
+    };
+
+    // Add strongly-typed event listeners
+    recognitionInstance.addEventListener('result', handleResult);
+    recognitionInstance.addEventListener('error', handleError);
+    recognitionInstance.addEventListener('end', handleEnd);
+
+    // Cleanup function
+    return () => {
+      if (recognitionInstance) {
+        // Remove all event listeners
+        recognitionInstance.removeEventListener('result', handleResult);
+        recognitionInstance.removeEventListener('error', handleError);
+        recognitionInstance.removeEventListener('end', handleEnd);
+        
+        // Safely abort recognition if it's active
+        try {
+          if ('abort' in recognitionInstance && typeof recognitionInstance.abort === 'function') {
+            recognitionInstance.abort();
+          }
+        } catch (e) {
+          console.warn('Error aborting speech recognition:', e);
+        }
+      }
+    };
   }, []);
 
   // Message from extension
@@ -153,14 +205,47 @@ const App: React.FC = () => {
     window.vscode.postMessage({ type: 'deleteSession', sessionId });
   }, []);
 
-  const toggleVoiceRecording = useCallback(() => {
-    if (!isVoiceEnabled || !recognition.current) return;
+  const toggleVoiceRecording = useCallback(async () => {
+    if (!isVoiceEnabled) {
+      console.warn('Voice input is not enabled in settings');
+      return;
+    }
 
-    if (isRecording) {
-      recognition.current.stop();
-    } else {
-      recognition.current.start();
-      setIsRecording(true);
+    if (!recognition.current) {
+      console.error('Speech recognition is not available');
+      return;
+    }
+
+    try {
+      if (isRecording) {
+        // Stop the current recognition
+        if (typeof recognition.current.stop === 'function') {
+          recognition.current.stop();
+        }
+        // The 'end' event will handle setting isRecording to false
+      } else {
+        // Start new recognition
+        if (typeof recognition.current.start === 'function') {
+          // Clear any previous input
+          setInputMessage('');
+          // Start recognition
+          recognition.current.start();
+          setIsRecording(true);
+        } else {
+          console.error('Speech recognition start method not available');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling voice recording:', error);
+      setIsRecording(false);
+      
+      // Show error to user if possible
+      if (error instanceof Error) {
+        window.vscode.postMessage({
+          type: 'showError',
+          message: `Voice input error: ${error.message}`
+        });
+      }
     }
   }, [isVoiceEnabled, isRecording]);
 

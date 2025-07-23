@@ -59,7 +59,7 @@ const webviewConfig = {
   entry: './src/webview/index.tsx',
   output: {
     path: path.resolve(__dirname, 'dist', 'webview'),
-    filename: 'webview.js',
+    filename: '[name].[contenthash].js',
     publicPath: '/'
   },
   resolve: {
