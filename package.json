@@ -1,0 +1,260 @@
+{
+  "name": "perplexity-vscode-pro",
+  "displayName": "Perplexity AI Chat Pro",
+  "description": "Advanced Next-Generation Perplexity AI Chat Extension for VSCode with modern UI and powerful features",
+  "version": "1.0.0",
+  "publisher": "perplexity-ai",
+  "author": {
+    "name": "Perplexity AI Team",
+    "email": "extensions@perplexity.ai"
+  },
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1a1a1a",
+    "theme": "dark"
+  },
+  "keywords": [
+    "perplexity",
+    "ai",
+    "chat",
+    "assistant",
+    "search",
+    "copilot",
+    "productivity"
+  ],
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Extension Packs"
+  ],
+  "engines": {
+    "vscode": "^1.75.0",
+    "node": ">=18.0.0"
+  },
+  "main": "./dist/extension.js",
+  "browser": "./dist/web/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Perplexity AI Chat Pro",
+      "properties": {
+        "perplexityChat.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Perplexity API Key for authentication",
+          "scope": "machine-overridable"
+        },
+        "perplexityChat.model": {
+          "type": "string",
+          "default": "llama-3.1-sonar-small-128k-online",
+          "enum": [
+            "llama-3.1-sonar-small-128k-online",
+            "llama-3.1-sonar-large-128k-online",
+            "llama-3.1-sonar-huge-128k-online"
+          ],
+          "description": "Default Perplexity model to use"
+        },
+        "perplexityChat.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for responses"
+        },
+        "perplexityChat.maxTokens": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 1,
+          "maximum": 128000,
+          "description": "Maximum tokens in response"
+        },
+        "perplexityChat.enableVoice": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable voice input and output features"
+        },
+        "perplexityChat.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save chat sessions"
+        },
+        "perplexityChat.theme": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "dark",
+            "light"
+          ],
+          "description": "Chat interface theme"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "perplexityChat.openChat",
+        "title": "Open Perplexity Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "perplexityChat.newSession",
+        "title": "New Chat Session",
+        "icon": "$(add)"
+      },
+      {
+        "command": "perplexityChat.explainCode",
+        "title": "Explain Selected Code",
+        "icon": "$(question)"
+      },
+      {
+        "command": "perplexityChat.debugCode",
+        "title": "Debug This Code",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "perplexityChat.optimizeCode",
+        "title": "Optimize Code",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "perplexityChat.generateTests",
+        "title": "Generate Tests",
+        "icon": "$(beaker)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "perplexityChat.chatView",
+          "name": "Perplexity Chat",
+          "when": "true",
+          "icon": "$(comment-discussion)",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "perplexityChat",
+          "title": "Perplexity AI",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "perplexityChat.explainCode",
+          "when": "editorHasSelection",
+          "group": "perplexity@1"
+        },
+        {
+          "command": "perplexityChat.debugCode",
+          "when": "editorHasSelection",
+          "group": "perplexity@2"
+        },
+        {
+          "command": "perplexityChat.optimizeCode",
+          "when": "editorHasSelection",
+          "group": "perplexity@3"
+        },
+        {
+          "command": "perplexityChat.generateTests",
+          "when": "editorHasSelection",
+          "group": "perplexity@4"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "perplexityChat.newSession",
+          "when": "view == perplexityChat.chatView",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "perplexityChat.openChat",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "perplexityChat.explainCode",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --minify",
+    "build:webview": "webpack --mode=production",
+    "dev": "npm run dev:extension && npm run dev:webview",
+    "dev:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap --watch",
+    "dev:webview": "webpack --mode=development --watch",
+    "compile": "npm run build",
+    "watch": "npm run dev",
+    "test": "npm run compile && node ./dist/test/runTest.js",
+    "lint": "eslint src --ext ts,tsx",
+    "lint:fix": "eslint src --ext ts,tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "type-check": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/uuid": "^9.0.7",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "@vscode/test-electron": "^2.3.8",
+    "autoprefixer": "^10.4.16",
+    "css-loader": "^6.8.1",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.54.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "html-webpack-plugin": "^5.5.3",
+    "postcss": "^8.4.32",
+    "postcss-loader": "^7.3.3",
+    "prettier": "^3.1.0",
+    "style-loader": "^3.3.3",
+    "tailwindcss": "^3.3.6",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "volta": {
+    "node": "18.19.0",
+    "npm": "10.2.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/perplexity-ai/vscode-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/perplexity-ai/vscode-extension/issues"
+  },
+  "homepage": "https://github.com/perplexity-ai/vscode-extension#readme",
+  "extensionDependencies": [],
+  "preview": false
+}

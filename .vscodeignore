@@ -1,0 +1,34 @@
+# Source files
+src/
+tsconfig.json
+webpack.config.js
+tailwind.config.js
+postcss.config.js
+.eslintrc.json
+.prettierrc
+
+# Development dependencies
+node_modules/
+.vscode-test/
+.gitignore
+.git/
+
+# Build artifacts
+**/*.map
+.vscode-test/**
+.vscode test
+.vscode-test
+out/test/**
+out/**/*.map
+src/**
+
+# Documentation
+*.md
+docs/
+
+# Configuration files
+.env*
+.eslintrc*
+.prettierrc*
+jest.config*
+babel.config*

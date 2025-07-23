@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Prose styling for markdown */
+.prose {
+  max-width: none;
+}
+
+.prose pre {
+  background-color: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.prose code {
+  background-color: #374151;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.prose blockquote {
+  border-left: 4px solid #3b82f6;
+  background-color: #1f2937;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid #374151;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: #374151;
+  font-weight: 600;
+}
+
+/* Animation for streaming text */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.streaming {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Voice recording animation */
+@keyframes record {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.recording {
+  animation: record 1s ease-in-out infinite;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .w-64 {
+    width: 100%;
+    position: absolute;
+    z-index: 10;
+    height: 100%;
+  }
+}
+
+/* Dark theme adjustments */
+.app.dark {
+  color-scheme: dark;
+}
+
+.app.light {
+  color-scheme: light;
+}
+
+.app.light .bg-gray-900 {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+.app.light .bg-gray-800 {
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.app.light .bg-gray-700 {
+  background-color: #f3f4f6;
+}
+
+.app.light .border-gray-700 {
+  border-color: #e5e7eb;
+}
+
+.app.light .text-white {
+  color: #111827;
+}
+
+.app.light .text-gray-400 {
+  color: #6b7280;
+}
+
+.app.light .text-gray-300 {
+  color: #374151;
+}
