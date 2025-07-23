@@ -4,9 +4,10 @@
     "lib": [
       "ES2022",
       "DOM",
-      "DOM.Iterable"
+      "DOM.Iterable",
+      "WebWorker"
     ],
-    "module": "CommonJS",
+    "module": "ESNext",
     "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./src",
@@ -22,7 +23,7 @@
     "noImplicitThis": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
@@ -34,26 +35,20 @@
     "jsxImportSource": "react",
     "baseUrl": "./src",
     "paths": {
-      "@/*": [
-        "*"
-      ],
-      "@/components/*": [
-        "components/*"
-      ],
-      "@/utils/*": [
-        "utils/*"
-      ],
-      "@/types/*": [
-        "types/*"
-      ],
-      "@/api/*": [
-        "api/*"
-      ]
+      "@/*": ["*"],
+      "@/components/*": ["components/*"],
+      "@/utils/*": ["utils/*"],
+      "@/types/*": ["types/*"],
+      "@/api/*": ["api/*"],
+      "@/webview/*": ["webview/*"]
+
     },
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
-    ]
+    ],
+    "allowJs": true,
+    "isolatedModules": true
   },
   "include": [
     "src/**/*",

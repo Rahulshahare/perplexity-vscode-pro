@@ -3,11 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
 
-
-// Add these type declarations at the top of your App.tsx file (after imports, before interfaces)
-
 // Speech Recognition API Types
-interface SpeechRecognition extends EventTarget {
+interface ISpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
@@ -51,8 +48,8 @@ interface SpeechRecognitionErrorEvent extends Event {
 }
 
 // Constructor interface
-interface SpeechRecognitionStatic {
-  new(): SpeechRecognition;
+interface ISpeechRecognitionStatic {
+  new(): ISpeechRecognition;
 }
 
 interface Message {
@@ -73,19 +70,19 @@ interface Session {
   mode: SearchMode;
 }
 
-
 type SearchMode = 'general' | 'debug' | 'explain' | 'optimize' | 'test' | 'research';
 
-// VSCode API interface
+// VSCode API interface - Extend Window without conflicting with built-in types
 declare global {
   interface Window {
-    SpeechRecognition: SpeechRecognitionStatic;
-    webkitSpeechRecognition: SpeechRecognitionStatic;
     vscode: {
       postMessage: (message: any) => void;
       setState: (state: any) => void;
       getState: () => any;
     };
+    // Use different property names to avoid conflicts
+    speechRecognition?: ISpeechRecognitionStatic;
+    webkitSpeechRecognition?: ISpeechRecognitionStatic;
   }
 }
 
@@ -101,18 +98,33 @@ const App: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognition = useRef<SpeechRecognition | null>(null);
+  const recognition = useRef<ISpeechRecognition | null>(null);
+
+  // Define updateSessionInList BEFORE it's used
+  const updateSessionInList = useCallback((updatedSession: Session) => {
+    setSessions(prev => {
+      const index = prev.findIndex(s => s.id === updatedSession.id);
+      if (index >= 0) {
+        const newSessions = [...prev];
+        newSessions[index] = updatedSession;
+        return newSessions;
+      } else {
+        return [updatedSession, ...prev];
+      }
+    });
+  }, []);
 
   // Initialize speech recognition
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // Access the speech recognition constructors from window with proper casting
+    const SpeechRecognitionConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
-    if (!SpeechRecognition) {
+    if (!SpeechRecognitionConstructor) {
       console.warn('Speech recognition is not supported in this browser');
       return;
     }
     
-    const recognitionInstance = new SpeechRecognition();
+    const recognitionInstance: ISpeechRecognition = new SpeechRecognitionConstructor();
     recognitionInstance.continuous = false;
     recognitionInstance.interimResults = false;
     recognitionInstance.lang = 'en-US';
@@ -183,34 +195,33 @@ const App: React.FC = () => {
   // Message from extension
   useEffect(() => {
     const messageHandler = (event: MessageEvent) => {
-    
-    try {
-          const message = event.data;
+      try {
+        const message = event.data;
 
-          switch (message.type) {
-            case 'sessionUpdate':
-              if (message.session) {
-                setCurrentSession(message.session);
-                updateSessionInList(message.session);
-              }
-              break;
-            case 'sessionsUpdate':
-              setSessions(message.sessions);
-              break;
-            case 'configUpdate':
-              setTheme(message.config.theme === 'auto' ? 'dark' : message.config.theme);
-              setIsVoiceEnabled(message.config.enableVoice);
-              break;
-            case 'streamingUpdate':
-              if (message.session) {
-                setCurrentSession(message.session);
-              }
-              break;
-          }
-    } catch (error) {
-      console.error('Failed to handle VSCode message:', error);
-    }
-  };
+        switch (message.type) {
+          case 'sessionUpdate':
+            if (message.session) {
+              setCurrentSession(message.session);
+              updateSessionInList(message.session);
+            }
+            break;
+          case 'sessionsUpdate':
+            setSessions(message.sessions);
+            break;
+          case 'configUpdate':
+            setTheme(message.config.theme === 'auto' ? 'dark' : message.config.theme);
+            setIsVoiceEnabled(message.config.enableVoice);
+            break;
+          case 'streamingUpdate':
+            if (message.session) {
+              setCurrentSession(message.session);
+            }
+            break;
+        }
+      } catch (error) {
+        console.error('Failed to handle VSCode message:', error);
+      }
+    };
 
     window.addEventListener('message', messageHandler);
     return () => window.removeEventListener('message', messageHandler);
@@ -226,21 +237,19 @@ const App: React.FC = () => {
     window.vscode.postMessage({ type: 'initialize' });
   }, []);
 
-  const updateSessionInList = useCallback((updatedSession: Session) => {
-    setSessions(prev => {
-      const index = prev.findIndex(s => s.id === updatedSession.id);
-      if (index >= 0) {
-        const newSessions = [...prev];
-        newSessions[index] = updatedSession;
-        return newSessions;
-      } else {
-        return [updatedSession, ...prev];
-      }
-    });
-  }, []);
+  // Add loading timeout to prevent stuck states
+  useEffect(() => {
+    if (!isLoading) return;
 
+    const timeout = setTimeout(() => {
+      console.warn('Message sending timed out');
+      setIsLoading(false);
+    }, 30000); // 30 second timeout
 
-  const sendMessage = useCallback(() => { // Remove 'async'
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
+
+  const sendMessage = useCallback(() => {
     if (!inputMessage.trim() || isLoading) return;
   
     const message = inputMessage.trim();
@@ -351,6 +360,7 @@ const App: React.FC = () => {
                 onClick={createNewSession}
                 className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors"
                 title="New Chat"
+                aria-label="Create new chat session"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -363,6 +373,7 @@ const App: React.FC = () => {
               value={searchMode}
               onChange={(e) => setSearchMode(e.target.value as SearchMode)}
               className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Select search mode"
             >
               {Object.entries(searchModeConfig).map(([mode, config]) => (
                 <option key={mode} value={mode}>
@@ -381,6 +392,9 @@ const App: React.FC = () => {
                   currentSession?.id === session.id ? 'bg-gray-700' : ''
                 }`}
                 onClick={() => switchSession(session.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Switch to session: ${session.title}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
@@ -403,6 +417,7 @@ const App: React.FC = () => {
                     }}
                     className="p-1 rounded hover:bg-gray-600 text-gray-400 hover:text-red-400"
                     title="Delete Session"
+                    aria-label={`Delete session: ${session.title}`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -481,6 +496,7 @@ const App: React.FC = () => {
                   className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[48px] max-h-32"
                   rows={1}
                   disabled={isLoading}
+                  aria-label="Message input"
                 />
               </div>
 
@@ -493,6 +509,7 @@ const App: React.FC = () => {
                       : 'bg-gray-700 hover:bg-gray-600'
                   }`}
                   title="Voice Input"
+                  aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
                   disabled={isLoading}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,6 +524,7 @@ const App: React.FC = () => {
                 className="p-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!inputMessage.trim() || isLoading}
                 title="Send Message"
+                aria-label="Send message"
               >
                 {isLoading ? (
                   <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
