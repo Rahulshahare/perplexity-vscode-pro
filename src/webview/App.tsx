@@ -3,55 +3,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
 
-// Speech Recognition API Types
-interface ISpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  addEventListener(type: 'result', listener: (event: SpeechRecognitionEvent) => void): void;
-  addEventListener(type: 'error', listener: (event: SpeechRecognitionErrorEvent) => void): void;
-  addEventListener(type: 'end', listener: () => void): void;
-  removeEventListener(type: 'result', listener: (event: SpeechRecognitionEvent) => void): void;
-  removeEventListener(type: 'error', listener: (event: SpeechRecognitionErrorEvent) => void): void;
-  removeEventListener(type: 'end', listener: () => void): void;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-
-interface SpeechRecognitionResultList {
-  length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionResult {
-  isFinal: boolean;
-  length: number;
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
-}
-
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message: string;
-}
-
-// Constructor interface
-interface ISpeechRecognitionStatic {
-  new(): ISpeechRecognition;
-}
-
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -72,7 +23,7 @@ interface Session {
 
 type SearchMode = 'general' | 'debug' | 'explain' | 'optimize' | 'test' | 'research';
 
-// VSCode API interface - Extend Window without conflicting with built-in types
+// VSCode API interface
 declare global {
   interface Window {
     vscode: {
@@ -80,9 +31,6 @@ declare global {
       setState: (state: any) => void;
       getState: () => any;
     };
-    // Use different property names to avoid conflicts
-    speechRecognition?: ISpeechRecognitionStatic;
-    webkitSpeechRecognition?: ISpeechRecognitionStatic;
   }
 }
 
@@ -93,12 +41,9 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>('general');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognition = useRef<ISpeechRecognition | null>(null);
 
   // Define updateSessionInList BEFORE it's used
   const updateSessionInList = useCallback((updatedSession: Session) => {
@@ -112,84 +57,6 @@ const App: React.FC = () => {
         return [updatedSession, ...prev];
       }
     });
-  }, []);
-
-  // Initialize speech recognition
-  useEffect(() => {
-    // Access the speech recognition constructors from window with proper casting
-    const SpeechRecognitionConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (!SpeechRecognitionConstructor) {
-      console.warn('Speech recognition is not supported in this browser');
-      return;
-    }
-    
-    const recognitionInstance: ISpeechRecognition = new SpeechRecognitionConstructor();
-    recognitionInstance.continuous = false;
-    recognitionInstance.interimResults = false;
-    recognitionInstance.lang = 'en-US';
-    
-    // Store the instance in the ref
-    recognition.current = recognitionInstance;
-
-    // Event handlers with proper typing
-    const handleResult = (event: SpeechRecognitionEvent) => {
-      try {
-        // Safely access results with proper type checking
-        const results = event.results;
-        if (results && results.length > 0) {
-          const result = results[event.resultIndex];
-          if (result && result.isFinal && result.length > 0) {
-            const firstAlternative = result[0];
-            if (firstAlternative) {
-              setInputMessage(firstAlternative.transcript);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error processing speech result:', error);
-      } finally {
-        setIsRecording(false);
-      }
-    };
-
-    const handleError = (event: Event) => {
-      const e = event as SpeechRecognitionErrorEvent;
-      console.error('Speech recognition error:', {
-        error: e.error,
-        message: e.message,
-        type: event.type
-      });
-      setIsRecording(false);
-    };
-
-    const handleEnd = () => {
-      setIsRecording(false);
-    };
-
-    // Add strongly-typed event listeners
-    recognitionInstance.addEventListener('result', handleResult);
-    recognitionInstance.addEventListener('error', handleError);
-    recognitionInstance.addEventListener('end', handleEnd);
-
-    // Cleanup function
-    return () => {
-      if (recognitionInstance) {
-        // Remove all event listeners
-        recognitionInstance.removeEventListener('result', handleResult);
-        recognitionInstance.removeEventListener('error', handleError);
-        recognitionInstance.removeEventListener('end', handleEnd);
-        
-        // Safely abort recognition if it's active
-        try {
-          if ('abort' in recognitionInstance && typeof recognitionInstance.abort === 'function') {
-            recognitionInstance.abort();
-          }
-        } catch (e) {
-          console.warn('Error aborting speech recognition:', e);
-        }
-      }
-    };
   }, []);
 
   // Message from extension
@@ -210,7 +77,6 @@ const App: React.FC = () => {
             break;
           case 'configUpdate':
             setTheme(message.config.theme === 'auto' ? 'dark' : message.config.theme);
-            setIsVoiceEnabled(message.config.enableVoice);
             break;
           case 'streamingUpdate':
             if (message.session) {
@@ -279,50 +145,6 @@ const App: React.FC = () => {
   const deleteSession = useCallback((sessionId: string) => {
     window.vscode.postMessage({ type: 'deleteSession', sessionId });
   }, []);
-
-  const toggleVoiceRecording = useCallback(async () => {
-    if (!isVoiceEnabled) {
-      console.warn('Voice input is not enabled in settings');
-      return;
-    }
-
-    if (!recognition.current) {
-      console.error('Speech recognition is not available');
-      return;
-    }
-
-    try {
-      if (isRecording) {
-        // Stop the current recognition
-        if (typeof recognition.current.stop === 'function') {
-          recognition.current.stop();
-        }
-        // The 'end' event will handle setting isRecording to false
-      } else {
-        // Start new recognition
-        if (typeof recognition.current.start === 'function') {
-          // Clear any previous input
-          setInputMessage('');
-          // Start recognition
-          recognition.current.start();
-          setIsRecording(true);
-        } else {
-          console.error('Speech recognition start method not available');
-        }
-      }
-    } catch (error) {
-      console.error('Error toggling voice recording:', error);
-      setIsRecording(false);
-      
-      // Show error to user if possible
-      if (error instanceof Error) {
-        window.vscode.postMessage({
-          type: 'showError',
-          message: `Voice input error: ${error.message}`
-        });
-      }
-    }
-  }, [isVoiceEnabled, isRecording]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -499,25 +321,6 @@ const App: React.FC = () => {
                   aria-label="Message input"
                 />
               </div>
-
-              {isVoiceEnabled && (
-                <button
-                  onClick={toggleVoiceRecording}
-                  className={`p-3 rounded-lg transition-colors ${
-                    isRecording 
-                      ? 'bg-red-600 hover:bg-red-700' 
-                      : 'bg-gray-700 hover:bg-gray-600'
-                  }`}
-                  title="Voice Input"
-                  aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
-                  disabled={isLoading}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                          d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </button>
-              )}
 
               <button
                 onClick={sendMessage}
