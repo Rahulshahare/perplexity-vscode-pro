@@ -1,7 +1,59 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
+
+
+// Add these type declarations at the top of your App.tsx file (after imports, before interfaces)
+
+// Speech Recognition API Types
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  addEventListener(type: 'result', listener: (event: SpeechRecognitionEvent) => void): void;
+  addEventListener(type: 'error', listener: (event: SpeechRecognitionErrorEvent) => void): void;
+  addEventListener(type: 'end', listener: () => void): void;
+  removeEventListener(type: 'result', listener: (event: SpeechRecognitionEvent) => void): void;
+  removeEventListener(type: 'error', listener: (event: SpeechRecognitionErrorEvent) => void): void;
+  removeEventListener(type: 'end', listener: () => void): void;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+// Constructor interface
+interface SpeechRecognitionStatic {
+  new(): SpeechRecognition;
+}
 
 interface Message {
   id: string;
@@ -21,11 +73,14 @@ interface Session {
   mode: SearchMode;
 }
 
+
 type SearchMode = 'general' | 'debug' | 'explain' | 'optimize' | 'test' | 'research';
 
 // VSCode API interface
 declare global {
   interface Window {
+    SpeechRecognition: SpeechRecognitionStatic;
+    webkitSpeechRecognition: SpeechRecognitionStatic;
     vscode: {
       postMessage: (message: any) => void;
       setState: (state: any) => void;
@@ -46,7 +101,7 @@ const App: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognition = useRef<SpeechRecognition> || (null);
+  const recognition = useRef<SpeechRecognition | null>(null);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -72,7 +127,7 @@ const App: React.FC = () => {
         const results = event.results;
         if (results && results.length > 0) {
           const result = results[event.resultIndex];
-          if (result && !result.isFinal && result.length > 0) {
+          if (result && result.isFinal && result.length > 0) {
             const firstAlternative = result[0];
             if (firstAlternative) {
               setInputMessage(firstAlternative.transcript);
@@ -128,33 +183,38 @@ const App: React.FC = () => {
   // Message from extension
   useEffect(() => {
     const messageHandler = (event: MessageEvent) => {
-      const message = event.data;
+    
+    try {
+          const message = event.data;
 
-      switch (message.type) {
-        case 'sessionUpdate':
-          if (message.session) {
-            setCurrentSession(message.session);
-            updateSessionInList(message.session);
+          switch (message.type) {
+            case 'sessionUpdate':
+              if (message.session) {
+                setCurrentSession(message.session);
+                updateSessionInList(message.session);
+              }
+              break;
+            case 'sessionsUpdate':
+              setSessions(message.sessions);
+              break;
+            case 'configUpdate':
+              setTheme(message.config.theme === 'auto' ? 'dark' : message.config.theme);
+              setIsVoiceEnabled(message.config.enableVoice);
+              break;
+            case 'streamingUpdate':
+              if (message.session) {
+                setCurrentSession(message.session);
+              }
+              break;
           }
-          break;
-        case 'sessionsUpdate':
-          setSessions(message.sessions);
-          break;
-        case 'configUpdate':
-          setTheme(message.config.theme === 'auto' ? 'dark' : message.config.theme);
-          setIsVoiceEnabled(message.config.enableVoice);
-          break;
-        case 'streamingUpdate':
-          if (message.session) {
-            setCurrentSession(message.session);
-          }
-          break;
-      }
-    };
+    } catch (error) {
+      console.error('Failed to handle VSCode message:', error);
+    }
+  };
 
     window.addEventListener('message', messageHandler);
     return () => window.removeEventListener('message', messageHandler);
-  }, []);
+  }, [updateSessionInList]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -179,18 +239,24 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const sendMessage = useCallback(async () => {
-    if (!inputMessage.trim() || isLoading) return;
 
+  const sendMessage = useCallback(() => { // Remove 'async'
+    if (!inputMessage.trim() || isLoading) return;
+  
     const message = inputMessage.trim();
     setInputMessage('');
     setIsLoading(true);
-
-    window.vscode.postMessage({
-      type: 'sendMessage',
-      content: message,
-      mode: searchMode
-    });
+  
+    try {
+      window.vscode.postMessage({
+        type: 'sendMessage',
+        content: message,
+        mode: searchMode
+      });
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setIsLoading(false); // Reset loading state on error
+    }
   }, [inputMessage, isLoading, searchMode]);
 
   const createNewSession = useCallback(() => {
@@ -263,14 +329,14 @@ const App: React.FC = () => {
     });
   };
 
-  const searchModeConfig = {
+  const searchModeConfig = useMemo(() => ({
     general: { icon: '💬', label: 'General Chat', color: 'text-blue-400' },
     debug: { icon: '🐛', label: 'Debug Code', color: 'text-red-400' },
     explain: { icon: '📖', label: 'Explain Code', color: 'text-green-400' },
     optimize: { icon: '⚡', label: 'Optimize Code', color: 'text-yellow-400' },
     test: { icon: '🧪', label: 'Generate Tests', color: 'text-purple-400' },
     research: { icon: '🔍', label: 'Research', color: 'text-cyan-400' }
-  };
+  }), []);
 
   return (
     <div className={`app ${theme}`}>
@@ -369,7 +435,11 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      disallowedElements={['script', 'iframe']}
+                      unwrapDisallowed={true}
+                    >
                       {message.content}
                     </ReactMarkdown>
                   </div>
